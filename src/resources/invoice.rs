@@ -66,10 +66,6 @@ pub struct Invoice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_advance: Option<bool>,
 
-    /// This field has been renamed to `collection_method` and will be removed in a future API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billing: Option<CollectionMethod>,
-
     /// Indicates the reason why the invoice was created.
     ///
     /// `subscription_cycle` indicates an invoice created by a subscription advancing into a new period.
@@ -109,6 +105,7 @@ pub struct Invoice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_fields: Option<Vec<InvoiceSettingCustomField>>,
 
+    /// The ID of the customer who will be billed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub customer: Option<Expandable<Customer>>,
 
@@ -190,6 +187,7 @@ pub struct Invoice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
+    /// Describes the current discount applied to this invoice, if there is one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discount: Option<Discount>,
 
@@ -340,9 +338,10 @@ pub struct Invoice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tax_amounts: Option<Vec<TaxAmount>>,
 
-    /// The time at which webhooks for this invoice were successfully delivered (if the invoice had no webhooks to deliver, this will match `created`).
+    /// Invoices are automatically paid or sent 1 hour after webhooks are delivered, or until all webhook delivery attempts have [been exhausted](https://stripe.com/docs/billing/webhooks#understand).
     ///
-    /// Invoice payment is delayed until webhooks are delivered, or until all webhook delivery attempts have been exhausted.
+    /// This field tracks the time when webhooks for this invoice were successfully delivered.
+    /// If the invoice had no webhooks to deliver, this will be set while the invoice is being created.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub webhooks_delivered_at: Option<Timestamp>,
 }
@@ -420,7 +419,7 @@ pub struct InvoiceItemThresholdReason {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InvoicesResourceInvoiceTaxId {
-    /// The type of the tax ID, one of `au_abn`, `eu_vat`, `in_gst`, `no_vat`, `nz_gst`, or `unknown`.
+    /// The type of the tax ID, one of `eu_vat`, `br_cnpj`, `br_cpf`, `nz_gst`, `au_abn`, `in_gst`, `no_vat`, `za_vat`, `ch_vat`, `mx_rfc`, `sg_uen`, `ru_inn`, `ca_bn`, `hk_br`, `es_cif`, `tw_vat`, `th_vat`, `jp_cn`, `li_uid`, `my_itn`, `us_ein`, `kr_brn`, `ca_qst`, `my_sst`, `sg_gst`, or `unknown`.
     #[serde(rename = "type")]
     pub type_: InvoicesResourceInvoiceTaxIdType,
 
@@ -464,10 +463,6 @@ pub struct CreateInvoice<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_advance: Option<bool>,
 
-    /// This field has been renamed to `collection_method` and will be removed in a future API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billing: Option<CollectionMethod>,
-
     /// Either `charge_automatically`, or `send_invoice`.
     ///
     /// When charging automatically, Stripe will attempt to pay this invoice using the default source attached to the customer.
@@ -480,6 +475,7 @@ pub struct CreateInvoice<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_fields: Option<Vec<CustomField>>,
 
+    /// The ID of the customer who will be billed.
     pub customer: CustomerId,
 
     /// The number of days from when the invoice is created until it is due.
@@ -506,6 +502,10 @@ pub struct CreateInvoice<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_tax_rates: Option<Vec<String>>,
 
+    /// An arbitrary string attached to the object.
+    ///
+    /// Often useful for displaying to users.
+    /// Referenced as 'memo' in the Dashboard.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<&'a str>,
 
@@ -523,6 +523,11 @@ pub struct CreateInvoice<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footer: Option<&'a str>,
 
+    /// Set of key-value pairs that you can attach to an object.
+    ///
+    /// This can be useful for storing additional information about the object in a structured format.
+    /// Individual keys can be unset by posting an empty value to them.
+    /// All keys can be unset by posting an empty value to `metadata`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 
@@ -553,7 +558,6 @@ impl<'a> CreateInvoice<'a> {
         CreateInvoice {
             application_fee_amount: Default::default(),
             auto_advance: Default::default(),
-            billing: Default::default(),
             collection_method: Default::default(),
             custom_fields: Default::default(),
             customer,
@@ -576,10 +580,6 @@ impl<'a> CreateInvoice<'a> {
 /// The parameters for `Invoice::list`.
 #[derive(Clone, Debug, Serialize, Default)]
 pub struct ListInvoices<'a> {
-    /// This field has been renamed to `collection_method` and will be removed in a future API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billing: Option<CollectionMethod>,
-
     /// The collection method of the invoice to retrieve.
     ///
     /// Either `charge_automatically` or `send_invoice`.
@@ -634,7 +634,6 @@ pub struct ListInvoices<'a> {
 impl<'a> ListInvoices<'a> {
     pub fn new() -> Self {
         ListInvoices {
-            billing: Default::default(),
             collection_method: Default::default(),
             created: Default::default(),
             customer: Default::default(),
@@ -829,22 +828,62 @@ impl std::fmt::Display for InvoiceStatusFilter {
 #[serde(rename_all = "snake_case")]
 pub enum InvoicesResourceInvoiceTaxIdType {
     AuAbn,
+    BrCnpj,
+    BrCpf,
+    CaBn,
+    CaQst,
+    ChVat,
+    EsCif,
     EuVat,
+    HkBr,
     InGst,
+    JpCn,
+    KrBrn,
+    LiUid,
+    MxRfc,
+    MyItn,
+    MySst,
     NoVat,
     NzGst,
+    RuInn,
+    SgGst,
+    SgUen,
+    ThVat,
+    TwVat,
     Unknown,
+    UsEin,
+    ZaVat,
 }
 
 impl InvoicesResourceInvoiceTaxIdType {
     pub fn as_str(self) -> &'static str {
         match self {
             InvoicesResourceInvoiceTaxIdType::AuAbn => "au_abn",
+            InvoicesResourceInvoiceTaxIdType::BrCnpj => "br_cnpj",
+            InvoicesResourceInvoiceTaxIdType::BrCpf => "br_cpf",
+            InvoicesResourceInvoiceTaxIdType::CaBn => "ca_bn",
+            InvoicesResourceInvoiceTaxIdType::CaQst => "ca_qst",
+            InvoicesResourceInvoiceTaxIdType::ChVat => "ch_vat",
+            InvoicesResourceInvoiceTaxIdType::EsCif => "es_cif",
             InvoicesResourceInvoiceTaxIdType::EuVat => "eu_vat",
+            InvoicesResourceInvoiceTaxIdType::HkBr => "hk_br",
             InvoicesResourceInvoiceTaxIdType::InGst => "in_gst",
+            InvoicesResourceInvoiceTaxIdType::JpCn => "jp_cn",
+            InvoicesResourceInvoiceTaxIdType::KrBrn => "kr_brn",
+            InvoicesResourceInvoiceTaxIdType::LiUid => "li_uid",
+            InvoicesResourceInvoiceTaxIdType::MxRfc => "mx_rfc",
+            InvoicesResourceInvoiceTaxIdType::MyItn => "my_itn",
+            InvoicesResourceInvoiceTaxIdType::MySst => "my_sst",
             InvoicesResourceInvoiceTaxIdType::NoVat => "no_vat",
             InvoicesResourceInvoiceTaxIdType::NzGst => "nz_gst",
+            InvoicesResourceInvoiceTaxIdType::RuInn => "ru_inn",
+            InvoicesResourceInvoiceTaxIdType::SgGst => "sg_gst",
+            InvoicesResourceInvoiceTaxIdType::SgUen => "sg_uen",
+            InvoicesResourceInvoiceTaxIdType::ThVat => "th_vat",
+            InvoicesResourceInvoiceTaxIdType::TwVat => "tw_vat",
             InvoicesResourceInvoiceTaxIdType::Unknown => "unknown",
+            InvoicesResourceInvoiceTaxIdType::UsEin => "us_ein",
+            InvoicesResourceInvoiceTaxIdType::ZaVat => "za_vat",
         }
     }
 }
